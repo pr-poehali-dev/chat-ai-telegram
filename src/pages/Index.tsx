@@ -36,6 +36,7 @@ function Index() {
   const [aiVoice, setAiVoice] = useState<File | null>(null);
   const [aiAvatar, setAiAvatar] = useState<File | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [chats] = useState<Chat[]>([
     {
@@ -77,30 +78,68 @@ function Index() {
     }
   ]);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || isLoading) return;
 
+    const userMessage = message;
     const newMessage: Message = {
       id: messages.length + 1,
-      text: message,
+      text: userMessage,
       sender: 'user',
       timestamp: new Date(),
       type: 'text'
     };
 
-    setMessages([...messages, newMessage]);
+    setMessages(prev => [...prev, newMessage]);
     setMessage('');
+    setIsLoading(true);
 
-    setTimeout(() => {
-      const aiResponse: Message = {
+    try {
+      const response = await fetch('https://functions.poehali.dev/6f069ba1-a913-43ef-8e63-505b7051a531', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          personality: selectedChat?.personality || aiPersonality,
+          history: messages.slice(-10)
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.response) {
+        const aiResponse: Message = {
+          id: messages.length + 2,
+          text: data.response,
+          sender: 'ai',
+          timestamp: new Date(),
+          type: 'text'
+        };
+        setMessages(prev => [...prev, aiResponse]);
+      } else {
+        const errorMessage: Message = {
+          id: messages.length + 2,
+          text: data.error || 'Извини, произошла ошибка. Проверь, что добавлен API ключ OpenAI в настройках проекта.',
+          sender: 'ai',
+          timestamp: new Date(),
+          type: 'text'
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      const errorMessage: Message = {
         id: messages.length + 2,
-        text: 'Получил твоё сообщение! Сейчас обрабатываю... ✨',
+        text: 'Не могу подключиться к серверу. Проверь интернет-соединение.',
         sender: 'ai',
         timestamp: new Date(),
         type: 'text'
       };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const menuItems = [
@@ -325,6 +364,22 @@ function Index() {
                     </div>
                   </div>
                 ))}
+                {isLoading && (
+                  <div className="flex gap-3 animate-fade-in">
+                    <Avatar className="w-10 h-10">
+                      <AvatarFallback className="gradient-purple text-white">
+                        🤖
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="max-w-[70%] rounded-2xl p-4 glass border-white/30">
+                      <div className="flex gap-2">
+                        <span className="w-2 h-2 bg-primary rounded-full animate-pulse-glow"></span>
+                        <span className="w-2 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: '0.2s' }}></span>
+                        <span className="w-2 h-2 bg-primary rounded-full animate-pulse-glow" style={{ animationDelay: '0.4s' }}></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </ScrollArea>
 
@@ -342,16 +397,22 @@ function Index() {
                 <Input
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
                   placeholder="Напишите сообщение..."
                   className="flex-1 glass border-white/30"
+                  disabled={isLoading}
                 />
                 <Button
                   onClick={handleSendMessage}
                   className="gradient-purple text-white hover:scale-105 transition-transform"
                   size="icon"
+                  disabled={isLoading}
                 >
-                  <Icon name="Send" size={20} />
+                  {isLoading ? (
+                    <Icon name="Loader2" size={20} className="animate-spin" />
+                  ) : (
+                    <Icon name="Send" size={20} />
+                  )}
                 </Button>
               </div>
             </div>

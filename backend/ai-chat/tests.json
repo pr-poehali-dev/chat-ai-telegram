@@ -1,0 +1,26 @@
+{
+  "tests": [
+    {
+      "name": "Handle OPTIONS preflight request",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedHeaders": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "name": "Return error when message is missing",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "personality": "Дружелюбный помощник"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
